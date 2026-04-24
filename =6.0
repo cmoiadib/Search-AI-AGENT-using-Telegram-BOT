@@ -1,0 +1,17 @@
+Collecting duckduckgo-search
+  Downloading duckduckgo_search-8.1.1-py3-none-any.whl.metadata (16 kB)
+Collecting click>=8.1.8 (from duckduckgo-search)
+  Downloading click-8.3.3-py3-none-any.whl.metadata (2.6 kB)
+Collecting primp>=0.15.0 (from duckduckgo-search)
+  Downloading primp-1.2.3-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.6 kB)
+Collecting lxml>=5.3.0 (from duckduckgo-search)
+  Downloading lxml-6.1.0-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl.metadata (4.0 kB)
+Downloading duckduckgo_search-8.1.1-py3-none-any.whl (18 kB)
+Downloading click-8.3.3-py3-none-any.whl (110 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 110.5/110.5 kB 6.5 MB/s eta 0:00:00
+Downloading lxml-6.1.0-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl (5.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.2/5.2 MB 77.6 MB/s eta 0:00:00
+Downloading primp-1.2.3-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.5 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 79.9 MB/s eta 0:00:00
+Installing collected packages: primp, lxml, click, duckduckgo-search
+Successfully installed click-8.3.3 duckduckgo-search-8.1.1 lxml-6.1.0 primp-1.2.3
