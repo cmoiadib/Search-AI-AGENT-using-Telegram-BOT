@@ -24,8 +24,6 @@ PUBMED_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 PUBMED_MAX_RESULTS = int(os.getenv("PUBMED_MAX_RESULTS", "8"))
 
 HAL_MAX_RESULTS = int(os.getenv("HAL_MAX_RESULTS", "8"))
-
-SCHOLAR_MAX_RESULTS = int(os.getenv("SCHOLAR_MAX_RESULTS", "8"))
 DDG_MAX_RESULTS = int(os.getenv("DDG_MAX_RESULTS", "8"))
 
 if not TELEGRAM_BOT_TOKEN:

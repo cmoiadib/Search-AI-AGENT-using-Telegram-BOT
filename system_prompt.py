@@ -76,7 +76,7 @@ Limites : [limites a mentionner si cite]
 
 Active par la commande /recherche.
 
-IMPORTANT : Quand des resultats de recherche sont fournis dans le message (PubMed, HAL, Semantic Scholar, DuckDuckGo), tu dois :
+IMPORTANT : Quand des resultats de recherche sont fournis dans le message (PubMed, HAL, DuckDuckGo), tu dois :
 1. Utiliser UNIQUEMENT ces vrais articles pour tes recommandations
 2. Ne JAMAIS inventer d'autres articles qui ne figurent pas dans les resultats
 3. Analyser les abstracts ou extraits fournis pour evaluer la pertinence

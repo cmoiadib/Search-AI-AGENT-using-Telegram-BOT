@@ -57,7 +57,7 @@ WELCOME = (
     "<b>AssistTDAH</b> — Assistant de recherche TDAH\n\n"
     "<b>Commandes :</b>\n"
     "  /analyse + texte/PDF — Analyser un article\n"
-    "  /recherche + sujet — Chercher sur PubMed + HAL + Scholar + DDG\n"
+    "  /recherche + sujet — Chercher sur PubMed + HAL + DDG\n"
     "  /synthese — Comparer des sources\n"
     "  /save — Sauvegarder la derniere analyse\n"
     "  /favoris — Voir les analyses sauvegardees\n"
@@ -250,8 +250,8 @@ async def recherche_command(update: Update, _) -> None:
         elif i == 2:
             ddg_results = result
 
-    logger.info("Resultats: PubMed=%d, HAL=%d, Scholar=%d, DDG=%d",
-        len(pubmed_articles), len(hal_articles), len(scholar_articles), len(ddg_results))
+    logger.info("Resultats: PubMed=%d, HAL=%d, DDG=%d",
+        len(pubmed_articles), len(hal_articles), len(ddg_results))
 
     total_raw = (
         len(pubmed_articles) + len(hal_articles)
