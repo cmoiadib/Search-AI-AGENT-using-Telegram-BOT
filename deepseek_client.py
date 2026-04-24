@@ -24,24 +24,21 @@ KEYWORD_PROMPT = """Tu es un assistant qui extrait des mots-cles de recherche a 
 Regle : la question peut contenir plusieurs dimensions geographiques ou thematiques. Tu dois toutes les capturer.
 
 Reponds UNIQUEMENT avec ce format, rien d'autre :
-PUBMED: [mots-cles en anglais, optimises pour PubMed avec operateurs boolean si utile]
+PUBMED: [mots-cles en anglais, optimises pour PubMed]
 HAL: [mots-cles en francais, optimises pour HAL]
-SCHOLAR: [mots-cles en anglais, pour recherche academique large sur Semantic Scholar]
-DDG: [requete en anglais, naturelle, pour recherche web generaliste sur DuckDuckGo]
+DDG: [requete en anglais, pour recherche web]
 
 Exemples :
 
 Question : "Peux tu me donner un article sur la prevalence du TDAH en France et dans le monde ?"
-PUBMED: ADHD prevalence France worldwide epidemiology global
-HAL: TDAH prevalence France monde epidemiologie mondiale
-SCHOLAR: ADHD prevalence rates global epidemiology cross-country comparison
-DDG: ADHD prevalence France worldwide epidemiology statistics
+PUBMED: ADHD prevalence France worldwide epidemiology
+HAL: TDAH prevalence France monde epidemiologie
+DDG: ADHD prevalence France worldwide statistics
 
 Question : "Quels sont les traitements non pharmacologiques du TDAH chez les enfants ?"
-PUBMED: ADHD non-pharmacological treatment children behavioral therapy intervention
+PUBMED: ADHD non-pharmacological treatment children behavioral therapy
 HAL: TDAH traitement non pharmacologique enfants therapie comportementale
-SCHOLAR: ADHD children non-pharmacological interventions behavioral therapy efficacy
-DDG: ADHD children non-drug treatment behavioral therapy research
+DDG: ADHD children non-drug treatment behavioral therapy
 
 Question : "{query}"
 """
@@ -92,14 +89,14 @@ async def extract_keywords(query: str) -> dict[str, str]:
             model=DEEPSEEK_MODEL_FLASH,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
-            max_tokens=300,
+            max_tokens=200,
         )
         text = response.choices[0].message.content or ""
     except Exception as e:
         logger.error("Erreur extraction mots-cles: %s", e)
-        return {"pubmed": query, "hal": query, "scholar": query, "ddg": query}
+        return {"pubmed": query, "hal": query, "ddg": query}
 
-    keywords = {"pubmed": query, "hal": query, "scholar": query, "ddg": query}
+    keywords = {"pubmed": query, "hal": query, "ddg": query}
 
     for line in text.strip().split("\n"):
         line = line.strip()
@@ -108,8 +105,6 @@ async def extract_keywords(query: str) -> dict[str, str]:
             keywords["pubmed"] = line[7:].strip()
         elif upper.startswith("HAL:"):
             keywords["hal"] = line[4:].strip()
-        elif upper.startswith("SCHOLAR:"):
-            keywords["scholar"] = line[8:].strip()
         elif upper.startswith("DDG:"):
             keywords["ddg"] = line[4:].strip()
 

@@ -40,14 +40,16 @@ from document_handler import (
 from formatter import md_to_html, split_message
 from hal import format_hal_results, search_hal
 from pubmed import format_results as format_pubmed_results, search_articles
-from scholar import format_scholar_results, search_scholar
 from system_prompt import RESEARCH_SYSTEM_OVERRIDE
 
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(levelname)s: %(message)s",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("primp").setLevel(logging.WARNING)
 
 _user_timestamps: dict[int, list[float]] = defaultdict(list)
 
@@ -212,6 +214,7 @@ async def recherche_command(update: Update, _) -> None:
         return
 
     query = update.message.text.removeprefix("/recherche").strip()
+    logger.info("Recherche: %s", query)
     if not query:
         await _send_error(
             update,
@@ -223,34 +226,36 @@ async def recherche_command(update: Update, _) -> None:
     await update.message.chat.send_action("typing")
 
     keywords = await extract_keywords(query)
+    logger.info("Mots-cles: pubmed=%s, hal=%s, ddg=%s",
+        keywords["pubmed"], keywords["hal"], keywords["ddg"])
 
     pubmed_task = asyncio.create_task(search_articles(keywords["pubmed"]))
     hal_task = asyncio.create_task(search_hal(keywords["hal"]))
-    scholar_task = asyncio.create_task(search_scholar(keywords["scholar"]))
     ddg_task = asyncio.create_task(search_ddg(keywords["ddg"]))
 
-    pubmed_articles, hal_articles, scholar_articles, ddg_results = [], [], [], []
+    pubmed_articles, hal_articles, ddg_results = [], [], []
 
     results = await asyncio.gather(
-        pubmed_task, hal_task, scholar_task, ddg_task, return_exceptions=True
+        pubmed_task, hal_task, ddg_task, return_exceptions=True
     )
 
     for i, result in enumerate(results):
         if isinstance(result, Exception):
-            source = ["PubMed", "HAL", "Semantic Scholar", "DuckDuckGo"][i]
-            logger.error("Erreur %s: %s", source, result)
+            source = ["PubMed", "HAL", "DuckDuckGo"][i]
+            logger.warning("Erreur %s: %s", source, result)
         elif i == 0:
             pubmed_articles = result
         elif i == 1:
             hal_articles = result
         elif i == 2:
-            scholar_articles = result
-        elif i == 3:
             ddg_results = result
+
+    logger.info("Resultats: PubMed=%d, HAL=%d, Scholar=%d, DDG=%d",
+        len(pubmed_articles), len(hal_articles), len(scholar_articles), len(ddg_results))
 
     total_raw = (
         len(pubmed_articles) + len(hal_articles)
-        + len(scholar_articles) + len(ddg_results)
+        + len(ddg_results)
     )
     if total_raw == 0:
         await _send_error(update, "Aucun article trouve. Essayez avec d'autres mots-cles.")
@@ -259,9 +264,10 @@ async def recherche_command(update: Update, _) -> None:
     deduped = _deduplicate_by_doi(
         ("PUBMED", pubmed_articles),
         ("HAL", hal_articles),
-        ("SCHOLAR", scholar_articles),
         ("DDG", ddg_results),
     )
+
+    logger.info("Total: brut=%d, unique=%d", total_raw, len(deduped))
 
     combined_text, source_counts = _format_deduped(deduped)
 
@@ -467,7 +473,7 @@ def main() -> None:
     app.add_handler(MessageHandler(filters.Document.PDF, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    logger.info("AssistTDAH bot demarre (PubMed + HAL + Scholar + DDG + V4 Pro).")
+    logger.info("Bot demarre")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

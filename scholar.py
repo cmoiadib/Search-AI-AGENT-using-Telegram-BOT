@@ -1,4 +1,6 @@
+import asyncio
 import logging
+import time
 
 import httpx
 
@@ -9,20 +11,36 @@ logger = logging.getLogger(__name__)
 SCHOLAR_BASE_URL = "https://api.semanticscholar.org/graph/v1/paper/search"
 SCHOLAR_FIELDS = "title,authors,year,abstract,externalIds,url,citationCount"
 
+_last_request_time = 0.0
+SCHOLAR_MIN_INTERVAL = 3.1
+
 
 async def search_scholar(query: str, max_results: int = SCHOLAR_MAX_RESULTS) -> list[dict]:
-    params = {
-        "query": query,
-        "limit": max_results,
-        "fields": SCHOLAR_FIELDS,
-    }
+    global _last_request_time
+
+    wait_time = SCHOLAR_MIN_INTERVAL - (time.time() - _last_request_time)
+    if wait_time > 0:
+        logger.info("Attente Semantic Scholar: %.1fs", wait_time)
+        await asyncio.sleep(wait_time)
+
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(SCHOLAR_BASE_URL, params=params)
+            resp = await client.get(
+                SCHOLAR_BASE_URL,
+                params={
+                    "query": query,
+                    "limit": max_results,
+                    "fields": SCHOLAR_FIELDS,
+                },
+            )
+            _last_request_time = time.time()
+            if resp.status_code == 429:
+                logger.warning("Semantic Scholar rate limited - ignore")
+                return []
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
-        logger.error("Erreur Semantic Scholar: %s", e)
+        logger.warning("Erreur Semantic Scholar: %s", e)
         return []
 
     papers = data.get("data", [])
