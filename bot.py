@@ -43,13 +43,16 @@ from pubmed import format_results as format_pubmed_results, search_articles
 from system_prompt import RESEARCH_SYSTEM_OVERRIDE
 
 logging.basicConfig(
-    format="%(levelname)s: %(message)s",
+    format="%(asctime)s │ %(message)s",
+    datefmt="%H:%M:%S",
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("primp").setLevel(logging.WARNING)
+logging.getLogger("telegram").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 _user_timestamps: dict[int, list[float]] = defaultdict(list)
 
@@ -172,6 +175,8 @@ async def _send_error(update: Update, text: str) -> None:
 
 
 async def start_command(update: Update, _) -> None:
+    chat_id = update.effective_chat.id
+    logger.info("[START] chat=%s", chat_id)
     await update.message.reply_text(WELCOME, parse_mode=ParseMode.HTML)
 
 
@@ -181,6 +186,7 @@ async def help_command(update: Update, _) -> None:
 
 async def reset_command(update: Update, _) -> None:
     chat_id = update.effective_chat.id
+    logger.info("[RESET] chat=%s", chat_id)
     clear_history(chat_id)
     await update.message.reply_text(
         "Historique efface. Nouvelle conversation."
@@ -190,6 +196,7 @@ async def reset_command(update: Update, _) -> None:
 async def analyse_command(update: Update, _) -> None:
     chat_id = update.effective_chat.id
     if not _check_rate_limit(chat_id):
+        logger.warning("[ANALYSE] Rate limited chat=%s", chat_id)
         await _send_error(update, "Trop de requetes. Patientez quelques instants.")
         return
 
@@ -202,9 +209,12 @@ async def analyse_command(update: Update, _) -> None:
         )
         return
 
+    logger.info("[ANALYSE] Debut analyse texte — chat=%s (%d chars)", chat_id, len(text))
     await update.message.chat.send_action("typing")
     response = await chat(chat_id, text)
+    logger.info("[ANALYSE] Reponse recue — chat=%s (%d chars)", chat_id, len(response))
     await _send_reply(update, response)
+    logger.info("[ANALYSE] Reponse envoyee — chat=%s", chat_id)
 
 
 async def recherche_command(update: Update, _) -> None:
@@ -214,7 +224,7 @@ async def recherche_command(update: Update, _) -> None:
         return
 
     query = update.message.text.removeprefix("/recherche").strip()
-    logger.info("Recherche: %s", query)
+    logger.info("[RECHERCHE] Demande: '%s' — chat=%s", query, chat_id)
     if not query:
         await _send_error(
             update,
@@ -226,7 +236,7 @@ async def recherche_command(update: Update, _) -> None:
     await update.message.chat.send_action("typing")
 
     keywords = await extract_keywords(query)
-    logger.info("Mots-cles: pubmed=%s, hal=%s, ddg=%s",
+    logger.info("[RECHERCHE] Mots-cles extraits — PubMed: '%s', HAL: '%s', DDG: '%s'",
         keywords["pubmed"], keywords["hal"], keywords["ddg"])
 
     pubmed_task = asyncio.create_task(search_articles(keywords["pubmed"]))
@@ -250,7 +260,7 @@ async def recherche_command(update: Update, _) -> None:
         elif i == 2:
             ddg_results = result
 
-    logger.info("Resultats: PubMed=%d, HAL=%d, DDG=%d",
+    logger.info("[RECHERCHE] Sources: PubMed=%d, HAL=%d, DDG=%d",
         len(pubmed_articles), len(hal_articles), len(ddg_results))
 
     total_raw = (
@@ -267,7 +277,7 @@ async def recherche_command(update: Update, _) -> None:
         ("DDG", ddg_results),
     )
 
-    logger.info("Total: brut=%d, unique=%d", total_raw, len(deduped))
+    logger.info("[RECHERCHE] Dedoublonnement: %d bruts -> %d uniques", total_raw, len(deduped))
 
     combined_text, source_counts = _format_deduped(deduped)
 
@@ -286,10 +296,13 @@ async def recherche_command(update: Update, _) -> None:
     )
 
     await update.message.chat.send_action("typing")
+    logger.info("[RECHERCHE] Envoi a DeepSeek pour classement — chat=%s", chat_id)
     response = await chat(
         chat_id, user_message, system_override=RESEARCH_SYSTEM_OVERRIDE
     )
+    logger.info("[RECHERCHE] Reponse recue — chat=%s", chat_id)
     await _send_reply(update, response)
+    logger.info("[RECHERCHE] Reponse envoyee — chat=%s", chat_id)
 
 
 async def synthese_command(update: Update, _) -> None:
@@ -307,8 +320,10 @@ async def synthese_command(update: Update, _) -> None:
         )
         return
 
+    logger.info("[SYNTHESE] Debut — chat=%s (%d chars)", chat_id, len(text))
     await update.message.chat.send_action("typing")
     response = await chat(chat_id, text)
+    logger.info("[SYNTHESE] Reponse envoyee — chat=%s", chat_id)
     await _send_reply(update, response)
 
 
@@ -322,6 +337,7 @@ async def save_command(update: Update, _) -> None:
 
     title = last_msg[:80].replace("\n", " ").strip() + "..."
     row_id = save_analysis(chat_id, title, last_msg)
+    logger.info("[SAVE] Analyse #%d sauvegardee — chat=%s", row_id, chat_id)
     await update.message.reply_text(f"Analyse sauvegardee (#{row_id}).")
 
 
@@ -355,6 +371,7 @@ async def delete_command(update: Update, _) -> None:
 
     deleted = delete_analysis(chat_id, analysis_id)
     if deleted:
+        logger.info("[DELETE] Analyse #%d supprimee — chat=%s", analysis_id, chat_id)
         await update.message.reply_text(f"Analyse #{analysis_id} supprimee.")
     else:
         await _send_error(update, f"Analyse #{analysis_id} non trouvee.")
@@ -366,9 +383,11 @@ async def modele_command(update: Update, _) -> None:
 
     if text in ("pro", "v4-pro", "deepseek-v4-pro"):
         set_user_model(chat_id, "deepseek-v4-pro")
+        logger.info("[MODELE] Switch vers V4 Pro — chat=%s", chat_id)
         await update.message.reply_text("Modele : <b>DeepSeek V4 Pro</b>", parse_mode=ParseMode.HTML)
     elif text in ("flash", "v4-flash", "deepseek-v4-flash"):
         set_user_model(chat_id, DEEPSEEK_MODEL_FLASH)
+        logger.info("[MODELE] Switch vers V4 Flash — chat=%s", chat_id)
         await update.message.reply_text("Modele : <b>DeepSeek V4 Flash</b>", parse_mode=ParseMode.HTML)
     else:
         current = _current_model_label(chat_id)
@@ -394,13 +413,17 @@ async def handle_text(update: Update, _) -> None:
         analysis_id = int(user_text.strip())
         content = get_analysis(chat_id, analysis_id)
         if content:
+            logger.info("[FAVORI] Lecture analyse #%d — chat=%s", analysis_id, chat_id)
             await _send_reply(update, content)
             return
 
     urls = extract_urls(user_text)
     if urls:
+        logger.info("[TEXTE] %d URL(s) detectee(s) — extraction en cours — chat=%s", len(urls), chat_id)
         user_text = await extract_text_from_urls(user_text)
+        logger.info("[TEXTE] Extraction URL terminee — chat=%s", chat_id)
 
+    logger.info("[TEXTE] Traitement message — chat=%s (%d chars)", chat_id, len(user_text))
     await _process_and_reply(chat_id, user_text, update)
 
 
@@ -420,18 +443,24 @@ async def handle_document(update: Update, _) -> None:
         )
         return
 
+    logger.info("[PDF] Document recu: '%s' (%.1f KB) — chat=%s",
+        doc.file_name, (doc.file_size or 0) / 1024, chat_id)
+
     await update.message.chat.send_action("typing")
 
     try:
         file = await doc.get_file()
         file_bytes = await file.download_as_bytearray()
+        logger.info("[PDF] Telechargement termine — chat=%s", chat_id)
         text = await extract_text_from_pdf(bytes(file_bytes))
+        logger.info("[PDF] Texte extrait (%d chars) — chat=%s", len(text), chat_id)
     except Exception as e:
-        logger.error("Erreur extraction PDF: %s", e)
+        logger.error("[PDF] Erreur extraction: %s — chat=%s", e, chat_id)
         await _send_error(update, f"Erreur extraction PDF : {e}")
         return
 
     if not text:
+        logger.warning("[PDF] Texte vide — chat=%s", chat_id)
         await _send_error(
             update, "Impossible d'extraire le texte. Essayez de copier-coller."
         )
@@ -443,13 +472,16 @@ async def handle_document(update: Update, _) -> None:
 async def _process_and_reply(chat_id: int, user_text: str, update: Update) -> None:
     try:
         await update.message.chat.send_action("typing")
+        logger.info("[DEEPSEEK] Envoi requete — chat=%s (%d chars)", chat_id, len(user_text))
         response = await chat(chat_id, user_text)
+        logger.info("[DEEPSEEK] Reponse recue — chat=%s (%d chars)", chat_id, len(response))
     except Exception as e:
-        logger.error("Erreur DeepSeek: %s", e)
+        logger.error("[DEEPSEEK] Erreur: %s — chat=%s", e, chat_id)
         await _send_error(update, f"Erreur : {e}")
         return
 
     await _send_reply(update, response)
+    logger.info("[DEEPSEEK] Reponse envoyee a Telegram — chat=%s", chat_id)
 
 
 # --- Main ---
